@@ -246,5 +246,5 @@ async def health_check():
 async def root():
     return {"message": "Todoist Integration API"}
 
-# Add handler for Vercel
+# For Vercel
 handler = app 
