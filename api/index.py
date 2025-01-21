@@ -9,7 +9,6 @@ import os
 from dotenv import load_dotenv
 import uuid
 from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 # Load environment variables
@@ -41,10 +40,6 @@ app = FastAPI(title="Todoist Voice Task Plugin")
 # Update templates directory for Vercel
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-
-# Update static files directory for Vercel
-STATIC_DIR = Path(__file__).parent / "static"
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # Models based on Omi's memory creation payload
 class TranscriptSegment(BaseModel):
