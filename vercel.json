@@ -1,11 +1,4 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "main.py",
-      "use": "@vercel/python"
-    }
-  ],
   "routes": [
     {
       "src": "/static/(.*)",
@@ -13,11 +6,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "main.py"
+      "dest": "/api/index.py"
     }
-  ],
-  "env": {
-    "PYTHONPATH": ".",
-    "TEMPLATES_DIR": "/templates"
-  }
+  ]
 } 
