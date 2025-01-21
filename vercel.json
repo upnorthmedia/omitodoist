@@ -8,11 +8,16 @@
   ],
   "routes": [
     {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "main.py"
     }
   ],
   "env": {
-    "LOCAL_TESTING": "false"
+    "PYTHONPATH": ".",
+    "TEMPLATES_DIR": "/templates"
   }
 } 

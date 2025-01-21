@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Form
 from fastapi.responses import HTMLResponse
 import aiohttp
 import asyncio
@@ -8,6 +8,9 @@ from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
 import uuid
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 # Load environment variables
 load_dotenv()
@@ -34,6 +37,13 @@ class OmiClient:
         self.kv = self.KVStore()
 
 app = FastAPI(title="Todoist Voice Task Plugin")
+
+# Update the templates directory path to work with Vercel
+TEMPLATES_DIR = Path(__file__).parent / "templates"
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+# Add this near the top of main.py, after creating the FastAPI app
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Models based on Omi's memory creation payload
 class TranscriptSegment(BaseModel):
@@ -182,32 +192,46 @@ async def handle_memory_creation(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/setup", response_class=HTMLResponse)
+async def setup_page(request: Request):
+    """Show setup form"""
+    uid = request.query_params.get("uid")
+    return templates.TemplateResponse(
+        "setup.html",
+        {"request": request, "uid": uid}
+    )
+
 @app.post("/setup")
-async def setup_todoist(payload: TodoistKeyPayload):
-    """Store Todoist API key in Omi's KV store"""
+async def setup_todoist(request: Request, api_key: str = Form(...), uid: str = Form(...)):
+    """Handle setup form submission"""
     try:
         # Validate the API key with Todoist before storing
         test_response = await create_todoist_task(
-            payload.api_key,
+            api_key,
             "Test task - please ignore",
             retries=1
         )
         
         # If we get here, the API key is valid
-        success = await store_todoist_key(payload.user_id, payload.api_key)
+        success = await store_todoist_key(uid, api_key)
         if success:
-            return {"status": "success", "message": "Todoist API key stored successfully"}
+            return templates.TemplateResponse(
+                "setup_success.html",
+                {"request": request}
+            )
         else:
             raise HTTPException(
                 status_code=500,
                 detail="Failed to store API key"
             )
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid Todoist API key: {str(e)}"
+        return templates.TemplateResponse(
+            "setup.html",
+            {
+                "request": request,
+                "uid": uid,
+                "error": str(e)
+            }
         )
 
 @app.get("/setup-done")
@@ -218,4 +242,8 @@ async def setup_complete():
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "ok"} 
+    return {"status": "ok"}
+
+@app.get("/")
+async def root():
+    return {"message": "Todoist Integration API"} 
