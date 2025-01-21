@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 import uuid
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
+from mangum import Mangum
 
 # Load environment variables
 load_dotenv()
@@ -246,5 +247,5 @@ async def health_check():
 async def root():
     return {"message": "Todoist Integration API"}
 
-# For Vercel
-handler = app 
+# For Vercel Serverless Functions
+handler = Mangum(app) 
