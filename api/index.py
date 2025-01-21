@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, HTTPException, Form
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 import aiohttp
 import asyncio
 from typing import Dict, Optional, List
@@ -247,5 +247,5 @@ async def health_check():
 async def root():
     return {"message": "Todoist Integration API"}
 
-# For Vercel Serverless Functions
+# Replace the custom handler with Mangum handler
 handler = Mangum(app) 

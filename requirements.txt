@@ -10,4 +10,4 @@ pytest-asyncio>=0.21.1,<0.22.0
 httpx>=0.24.1,<0.25.0  # Required for FastAPI TestClient
 requests>=2.31.0  # Required for TestClient
 aiofiles>=23.2.1  # Required for static files
-mangum==0.17.0 
+mangum>=0.17.0 
