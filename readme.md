@@ -1,7 +1,5 @@
 # Omi-Todoist Integration Plugin
 
-## 📋 Summary
-
 Omi-Todoist Integration automatically creates Todoist tasks from your conversations with Omi. This integration helps you capture action items and to-dos naturally during chats, sending them directly to your Todoist Inbox for easy task management.
 
 ## 📝 How It Works
@@ -16,7 +14,7 @@ Omi-Todoist Integration automatically creates Todoist tasks from your conversati
 
 - Your Todoist API token is stored securely and encrypted
 - We do not store any of your Todoist data
-- This integration is not created by, affiliated with, or supported by Doist
+- This integration is not created by, affiliated with, or supported by ToDoist
 
 ## 🤝 Contributing
 
