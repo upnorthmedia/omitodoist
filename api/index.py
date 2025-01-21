@@ -38,12 +38,13 @@ class OmiClient:
 
 app = FastAPI(title="Todoist Voice Task Plugin")
 
-# Update the templates directory path to work with Vercel
+# Update templates directory for Vercel
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
-# Add this near the top of main.py, after creating the FastAPI app
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Update static files directory for Vercel
+STATIC_DIR = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # Models based on Omi's memory creation payload
 class TranscriptSegment(BaseModel):
@@ -196,6 +197,8 @@ async def handle_memory_creation(request: Request):
 async def setup_page(request: Request):
     """Show setup form"""
     uid = request.query_params.get("uid")
+    if not uid:
+        raise HTTPException(status_code=400, detail="Missing user ID")
     return templates.TemplateResponse(
         "setup.html",
         {"request": request, "uid": uid}
@@ -246,4 +249,7 @@ async def health_check():
 
 @app.get("/")
 async def root():
-    return {"message": "Todoist Integration API"} 
+    return {"message": "Todoist Integration API"}
+
+# Add handler for Vercel
+handler = app 
