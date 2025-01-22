@@ -158,11 +158,12 @@ async def handle_memory_creation(request: Request):
         if not user_id:
             raise HTTPException(status_code=400, detail="Missing user ID")
 
-        api_key = await get_todoist_key(user_id)
+        # Use environment variable API key instead of stored key
+        api_key = os.getenv("TODOIST_API_KEY")
         if not api_key:
             raise HTTPException(
-                status_code=400,
-                detail="Todoist API key not configured. Please set up your Todoist integration first."
+                status_code=500,
+                detail="Todoist API key not configured in environment"
             )
 
         memory_data = MemoryPayload.parse_obj(await request.json())

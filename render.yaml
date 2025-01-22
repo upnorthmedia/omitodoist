@@ -9,4 +9,6 @@ services:
         value: "3.12"
       - key: LOCAL_TESTING
         value: "false"
+      - key: TODOIST_API_KEY
+        value: "d5ac866e69ae82890339f307ee69c6814e3ab0a1"
     autoDeploy: true 
