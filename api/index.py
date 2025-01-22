@@ -150,31 +150,103 @@ def sanitize_text(text: str, max_length: int = 500) -> str:
     sanitized = text.replace("<", "&lt;").replace(">", "&gt;")
     return sanitized[:max_length]
 
+def extract_tasks_from_transcript(transcript_segments: List[TranscriptSegment]) -> List[str]:
+    """Extract potential tasks from transcript segments"""
+    tasks = []
+    task_indicators = [
+        "remember to", "don't forget to", "need to", "have to", "should", 
+        "must", "going to", "will", "lets", "let's", "todo", "to do",
+        "task", "remind me to"
+    ]
+    
+    for segment in transcript_segments:
+        text = segment.text.lower()
+        # Check if segment contains task indicators
+        if any(indicator in text for indicator in task_indicators):
+            # Clean up the task text
+            task = segment.text.strip()
+            # Remove common prefixes
+            for indicator in task_indicators:
+                if task.lower().startswith(indicator):
+                    task = task[len(indicator):].strip()
+            if task:
+                tasks.append(task)
+    
+    return tasks
+
 @app.post("/webhook")
 async def handle_memory_creation(request: Request):
     """Handle memory creation webhook from Omi"""
     try:
+        # Debug logging
+        print("Received webhook request")
+        
         user_id = request.query_params.get("uid")
+        print(f"User ID: {user_id}")
+        
         if not user_id:
             raise HTTPException(status_code=400, detail="Missing user ID")
 
         # Use environment variable API key instead of stored key
         api_key = os.getenv("TODOIST_API_KEY")
+        print(f"API Key present: {bool(api_key)}")
+        
         if not api_key:
             raise HTTPException(
                 status_code=500,
                 detail="Todoist API key not configured in environment"
             )
 
-        memory_data = MemoryPayload.parse_obj(await request.json())
+        # Debug log request body
+        body = await request.json()
+        print(f"Request body: {body}")
+        
+        try:
+            memory_data = MemoryPayload.parse_obj(body)
+            print("Successfully parsed memory payload")
+        except Exception as e:
+            print(f"Failed to parse memory payload: {str(e)}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid memory payload: {str(e)}"
+            )
         
         tasks = []
+        
+        # Extract tasks from structured action items
+        print(f"Found {len(memory_data.structured.action_items)} action items")
         for action_item in memory_data.structured.action_items:
             if not action_item.completed:
                 sanitized_text = sanitize_text(action_item.description)
-                task = await create_todoist_task(api_key, sanitized_text)
-                tasks.append(task)
+                print(f"Creating task: {sanitized_text}")
+                try:
+                    task = await create_todoist_task(api_key, sanitized_text)
+                    tasks.append(task)
+                    print(f"Successfully created task: {task}")
+                except Exception as e:
+                    print(f"Failed to create task: {str(e)}")
+                    # Continue with other tasks even if one fails
+                    continue
+        
+        # Extract additional tasks from transcript
+        transcript_tasks = extract_tasks_from_transcript(memory_data.transcript_segments)
+        print(f"Found {len(transcript_tasks)} tasks in transcript")
+        
+        for task_text in transcript_tasks:
+            sanitized_text = sanitize_text(task_text)
+            # Check if this task is similar to any already created tasks to avoid duplicates
+            if not any(t.get('content', '').lower() == sanitized_text.lower() for t in tasks):
+                print(f"Creating transcript task: {sanitized_text}")
+                try:
+                    task = await create_todoist_task(api_key, sanitized_text)
+                    tasks.append(task)
+                    print(f"Successfully created transcript task: {task}")
+                except Exception as e:
+                    print(f"Failed to create transcript task: {str(e)}")
+                    # Continue with other tasks even if one fails
+                    continue
 
+        print(f"Successfully created {len(tasks)} tasks")
         return {
             "status": "success",
             "tasks_created": len(tasks),
@@ -183,6 +255,7 @@ async def handle_memory_creation(request: Request):
     except HTTPException:
         raise
     except Exception as e:
+        print(f"Webhook error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/setup", response_class=HTMLResponse)
