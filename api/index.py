@@ -11,30 +11,10 @@ import os
 from dotenv import load_dotenv
 import uuid
 from pathlib import Path
+from . import db
 
 # Load environment variables
 load_dotenv()
-
-# Mock Omi SDK with local storage fallback
-class OmiClient:
-    class KVStore:
-        async def get(self, key: str) -> Optional[str]:
-            # For local testing, use environment variables
-            if os.getenv("LOCAL_TESTING"):
-                return os.getenv(key)
-            # In production, this would interact with Omi's actual KV store
-            return None
-            
-        async def set(self, key: str, value: str) -> bool:
-            # For local testing, store in environment
-            if os.getenv("LOCAL_TESTING"):
-                os.environ[key] = value
-                return True
-            # In production, this would interact with Omi's actual KV store
-            return True
-
-    def __init__(self):
-        self.kv = self.KVStore()
 
 app = FastAPI(title="Todoist Voice Task Plugin")
 
@@ -72,10 +52,6 @@ class StructuredData(BaseModel):
     action_items: List[ActionItem]
     events: List[Event]
 
-class AppResponse(BaseModel):
-    app_id: str
-    content: str
-
 class MemoryPayload(BaseModel):
     id: str
     created_at: datetime
@@ -94,34 +70,6 @@ class MemoryPayload(BaseModel):
     visibility: str
     processing_memory_id: Optional[str] = None
     status: str
-
-class TodoistKeyPayload(BaseModel):
-    user_id: str
-    api_key: str
-
-async def get_todoist_key(user_id: str) -> Optional[str]:
-    """Get Todoist API key from Omi's KV store"""
-    try:
-        omi_client = OmiClient()
-        key = await omi_client.kv.get(f"todoist_key_{user_id}")
-        return key
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to retrieve API key: {str(e)}"
-        )
-
-async def store_todoist_key(user_id: str, api_key: str) -> bool:
-    """Store Todoist API key in Omi's KV store"""
-    try:
-        omi_client = OmiClient()
-        await omi_client.kv.set(f"todoist_key_{user_id}", api_key)
-        return True
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to store API key: {str(e)}"
-        )
 
 async def create_todoist_task(api_key: str, content: str, retries: int = 3) -> Dict:
     """Create a task in Todoist with retry logic"""
@@ -179,14 +127,14 @@ async def handle_memory_creation(request: Request):
         if not user_id:
             raise HTTPException(status_code=400, detail="Missing user ID")
 
-        # Use environment variable API key instead of stored key
-        api_key = os.getenv("TODOIST_API_KEY")
-        print(f"API Key present: {bool(api_key)}")
+        # Get API key from database
+        api_key = db.get_api_key(user_id)
+        print(f"API Key found: {bool(api_key)}")
         
         if not api_key:
             raise HTTPException(
-                status_code=500,
-                detail="Todoist API key not configured in environment"
+                status_code=400,
+                detail="Todoist API key not configured. Please set up your Todoist integration first."
             )
 
         # Debug log request body
@@ -254,7 +202,7 @@ async def setup_todoist(request: Request, api_key: str = Form(...), uid: str = F
         )
         
         # If we get here, the API key is valid
-        success = await store_todoist_key(uid, api_key)
+        success = db.store_api_key(uid, api_key)
         if success:
             return templates.TemplateResponse(
                 "setup_success.html",
