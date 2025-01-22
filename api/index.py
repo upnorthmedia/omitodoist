@@ -123,7 +123,7 @@ async def store_todoist_key(user_id: str, api_key: str) -> bool:
             detail=f"Failed to store API key: {str(e)}"
         )
 
-async def create_todoist_task(api_key: str, content: str, due_string: str = "today", retries: int = 3) -> Dict:
+async def create_todoist_task(api_key: str, content: str, retries: int = 3) -> Dict:
     """Create a task in Todoist with retry logic"""
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -134,7 +134,6 @@ async def create_todoist_task(api_key: str, content: str, due_string: str = "tod
     url = "https://api.todoist.com/rest/v2/tasks"
     payload = {
         "content": content,
-        "due_string": due_string,
         "priority": 1,
         "project_id": None  # None means it will go to Inbox
     }
@@ -233,26 +232,11 @@ async def handle_memory_creation(request: Request):
         # Extract tasks from structured action items
         print(f"Found {len(memory_data.structured.action_items)} action items")
         for action_item in memory_data.structured.action_items:
-            if not action_item.completed and not action_item.deleted:  # Check both flags
+            if not action_item.completed and not action_item.deleted:
                 sanitized_text = sanitize_text(action_item.description)
                 print(f"Creating task: {sanitized_text}")
                 try:
-                    # Add due date if there's a matching event
-                    matching_event = next(
-                        (event for event in memory_data.structured.events 
-                         if event.title.lower() in sanitized_text.lower()),
-                        None
-                    )
-                    
-                    if matching_event:
-                        task = await create_todoist_task(
-                            api_key, 
-                            sanitized_text,
-                            due_string=matching_event.start.split('T')[0]  # Use just the date part
-                        )
-                    else:
-                        task = await create_todoist_task(api_key, sanitized_text)
-                    
+                    task = await create_todoist_task(api_key, sanitized_text)
                     tasks.append(task)
                     print(f"Successfully created task: {task}")
                 except Exception as e:
