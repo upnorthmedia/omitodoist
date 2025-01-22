@@ -46,14 +46,23 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 class TranscriptSegment(BaseModel):
     text: str
     speaker: str
-    speakerId: int
+    speaker_id: int
     is_user: bool
     start: float
     end: float
+    person_id: Optional[str] = None
+
+class Event(BaseModel):
+    title: str
+    description: str
+    start: str
+    duration: int
+    created: bool
 
 class ActionItem(BaseModel):
     description: str
     completed: bool
+    deleted: bool = False
 
 class StructuredData(BaseModel):
     title: str
@@ -61,22 +70,30 @@ class StructuredData(BaseModel):
     emoji: str
     category: str
     action_items: List[ActionItem]
-    events: List[Dict]
+    events: List[Event]
 
 class AppResponse(BaseModel):
     app_id: str
     content: str
 
 class MemoryPayload(BaseModel):
-    id: int
+    id: str
     created_at: datetime
     started_at: datetime
     finished_at: datetime
-    transcript_segments: List[TranscriptSegment]
-    photos: List[str]
+    source: str
+    language: str
     structured: StructuredData
-    apps_response: List[AppResponse]
+    transcript_segments: List[TranscriptSegment]
+    geolocation: Optional[Dict] = None
+    photos: List[str]
+    plugins_results: List[Dict] = []
+    external_data: Optional[Dict] = None
     discarded: bool
+    deleted: bool = False
+    visibility: str
+    processing_memory_id: Optional[str] = None
+    status: str
 
 class TodoistKeyPayload(BaseModel):
     user_id: str
@@ -106,7 +123,7 @@ async def store_todoist_key(user_id: str, api_key: str) -> bool:
             detail=f"Failed to store API key: {str(e)}"
         )
 
-async def create_todoist_task(api_key: str, content: str, retries: int = 3) -> Dict:
+async def create_todoist_task(api_key: str, content: str, due_string: str = "today", retries: int = 3) -> Dict:
     """Create a task in Todoist with retry logic"""
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -117,7 +134,7 @@ async def create_todoist_task(api_key: str, content: str, retries: int = 3) -> D
     url = "https://api.todoist.com/rest/v2/tasks"
     payload = {
         "content": content,
-        "due_string": "today",
+        "due_string": due_string,
         "priority": 1,
         "project_id": None  # None means it will go to Inbox
     }
@@ -156,7 +173,7 @@ def extract_tasks_from_transcript(transcript_segments: List[TranscriptSegment]) 
     task_indicators = [
         "remember to", "don't forget to", "need to", "have to", "should", 
         "must", "going to", "will", "lets", "let's", "todo", "to do",
-        "task", "remind me to"
+        "task", "remind me to", "need to"
     ]
     
     for segment in transcript_segments:
@@ -216,16 +233,30 @@ async def handle_memory_creation(request: Request):
         # Extract tasks from structured action items
         print(f"Found {len(memory_data.structured.action_items)} action items")
         for action_item in memory_data.structured.action_items:
-            if not action_item.completed:
+            if not action_item.completed and not action_item.deleted:  # Check both flags
                 sanitized_text = sanitize_text(action_item.description)
                 print(f"Creating task: {sanitized_text}")
                 try:
-                    task = await create_todoist_task(api_key, sanitized_text)
+                    # Add due date if there's a matching event
+                    matching_event = next(
+                        (event for event in memory_data.structured.events 
+                         if event.title.lower() in sanitized_text.lower()),
+                        None
+                    )
+                    
+                    if matching_event:
+                        task = await create_todoist_task(
+                            api_key, 
+                            sanitized_text,
+                            due_string=matching_event.start.split('T')[0]  # Use just the date part
+                        )
+                    else:
+                        task = await create_todoist_task(api_key, sanitized_text)
+                    
                     tasks.append(task)
                     print(f"Successfully created task: {task}")
                 except Exception as e:
                     print(f"Failed to create task: {str(e)}")
-                    # Continue with other tasks even if one fails
                     continue
         
         # Extract additional tasks from transcript
@@ -243,7 +274,6 @@ async def handle_memory_creation(request: Request):
                     print(f"Successfully created transcript task: {task}")
                 except Exception as e:
                     print(f"Failed to create transcript task: {str(e)}")
-                    # Continue with other tasks even if one fails
                     continue
 
         print(f"Successfully created {len(tasks)} tasks")
