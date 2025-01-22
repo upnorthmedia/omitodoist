@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: todoist-voice-plugin
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.index:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12"
+      - key: LOCAL_TESTING
+        value: "false"
+    autoDeploy: true 
